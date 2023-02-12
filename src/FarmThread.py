@@ -6,6 +6,7 @@ import requests
 
 from SharedData import SharedData
 
+
 class FarmThread(Thread):
     """
     A thread that creates a capsule farm for a given account
@@ -107,12 +108,15 @@ class FarmThread(Thread):
             else:
                 requests.post(self.config.connectorDrops, json=newDrops)
 
+
 def getLeagueFromID(leagueId):
     allLeagues = getLeagues()
     for league in allLeagues:
         if leagueId in league["id"]:
             return league["name"]
     return ""
+
+
 def getLeagues():
     headers = {"Origin": "https://lolesports.com", "Referrer": "https://lolesports.com",
                "x-api-key": "0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z"}

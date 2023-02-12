@@ -1,6 +1,8 @@
 import requests as req
 
+
 class VersionManager:
+
 
     @staticmethod
     def getLatestTag():

@@ -4,6 +4,7 @@ from rich.live import Live
 from rich.table import Table
 from rich.console import Console
 
+
 class GuiThread(Thread):
     """
     A thread that creates a capsule farm for a given account

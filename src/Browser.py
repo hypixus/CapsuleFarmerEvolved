@@ -1,15 +1,14 @@
 from AssertCondition import AssertCondition
 from Exceptions.NoAccessTokenException import NoAccessTokenException
 from Exceptions.RateLimitException import RateLimitException
+from Exceptions.ForbiddenException import ForbiddenException
+from Exceptions.StatusCodeAssertException import StatusCodeAssertException
 from Match import Match
 import cloudscraper
-from pprint import pprint
 from bs4 import BeautifulSoup
 from datetime import datetime
-import threading
-from time import sleep, time
+from time import time
 from Config import Config
-from Exceptions.StatusCodeAssertException import StatusCodeAssertException
 import pickle
 from pathlib import Path
 import jwt
@@ -64,7 +63,8 @@ class Browser:
             if res.status_code == 429:
                 retryAfter = res.headers['Retry-after']
                 raise RateLimitException(retryAfter)
-                
+            elif res.status_code == 403:
+                raise ForbiddenException()
             resJson = res.json()
             if "multifactor" in resJson.get("type", ""):
                 twoFactorCode = input(f"Enter 2FA code for {self.account}:\n")
@@ -79,6 +79,9 @@ class Browser:
             return False
         except RateLimitException as ex:
             self.log.error(f"You are being rate-limited. Retry after {ex}")
+            return False
+        except ForbiddenException as ex:
+            self.log.error(ex)
             return False
         finally:
             refreshLock.release()
@@ -95,17 +98,18 @@ class Browser:
             self.client.post(
                 "https://login.leagueoflegends.com/sso/callback", data=data).close()
             self.client.get(
-                "https://auth.riotgames.com/authorize?client_id=esports-rna-prod&redirect_uri=https://account.rewards.lolesports.com/v1/session/oauth-callback&response_type=code&scope=openid&prompt=none&state=https://lolesports.com/?memento=na.en_GB", allow_redirects=True).close()
+                "https://auth.riotgames.com/authorize?client_id=esports-rna-prod&redirect_uri=https://account.rewards.lolesports.com/v1/session/oauth-callback&response_type=code&scope=openid&prompt=none&state=https://lolesports.com/?memento=na.en_GB",
+                allow_redirects=True).close()
 
             # Get access and entitlement tokens for the first time
             headers = {"Origin": "https://lolesports.com",
-                        "Referrer": "https://lolesports.com"}
+                       "Referrer": "https://lolesports.com"}
 
             # This requests sometimes returns 404
             resAccessToken = self.client.get(
                 "https://account.rewards.lolesports.com/v1/session/token", headers=headers)
             # Currently unused but the call might be important server-side
-            resPasToken = self.client.get(
+            _ = self.client.get(
                 "https://account.rewards.lolesports.com/v1/session/clientconfig/rms", headers=headers).close()
             if resAccessToken.status_code == 200:
                 self.__dumpCookies()
@@ -118,7 +122,7 @@ class Browser:
         """
         try:
             headers = {"Origin": "https://lolesports.com",
-                    "Referrer": "https://lolesports.com"}
+                       "Referrer": "https://lolesports.com"}
             resAccessToken = self.client.get(
                 "https://account.rewards.lolesports.com/v1/session/refresh", headers=headers)
             AssertCondition.statusCodeMatches(200, resAccessToken)
@@ -150,13 +154,15 @@ class Browser:
                 self.log.error(ex)
                 watchFailed.append(self.sharedData.getLiveMatches()[tid].league)
         return watchFailed
-    
+
     def checkNewDrops(self, lastCheckTime):
         try:
             headers = {"Origin": "https://lolesports.com",
-                   "Referrer": "https://lolesports.com",
-                   "Authorization": "Cookie access_token"}
-            res = self.client.get("https://account.service.lolesports.com/fandom-account/v1/earnedDrops?locale=en_GB&site=LOLESPORTS", headers=headers)
+                       "Referrer": "https://lolesports.com",
+                       "Authorization": "Cookie access_token"}
+            res = self.client.get(
+                "https://account.service.lolesports.com/fandom-account/v1/earnedDrops?locale=en_GB&site=LOLESPORTS",
+                headers=headers)
             resJson = res.json()
             res.close()
             return [drop for drop in resJson if lastCheckTime <= drop["unlockedDateMillis"]]
@@ -184,7 +190,7 @@ class Browser:
         """
         data = {"stream_id": match.streamChannel,
                 "source": match.streamSource,
-                "stream_position_time": datetime.utcnow().isoformat(sep='T', timespec='milliseconds')+'Z',
+                "stream_position_time": datetime.utcnow().isoformat(sep='T', timespec='milliseconds') + 'Z',
                 "geolocation": {"code": "CZ", "area": "EU"},
                 "tournament_id": match.tournamentId}
         headers = {"Origin": "https://lolesports.com",

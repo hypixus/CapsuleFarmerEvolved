@@ -1,5 +1,6 @@
 from datetime import datetime
 
+
 class Stats:
     def __init__(self, farmThreads) -> None:
         self.farmThreads = farmThreads
@@ -43,4 +44,3 @@ class Stats:
     
     def getFailedLogins(self, accountName: str):
         return self.accountData[accountName]["failedLoginCounter"]
-    
